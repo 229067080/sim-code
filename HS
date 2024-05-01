@@ -1,0 +1,118 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit as c
+import time
+plt.rcParams.update({'font.size':22})
+
+
+def gaussian(x, amplitude, mean, stddev):
+    return amplitude * np.exp(-((x - mean) / stddev)**2 / 2)
+
+def custom_function(t, x, f0, v, D, tau):
+    return (f0 * np.exp((-(x - v * t)**2) / (4 * D * t) - t / tau)) / (2 * np.sqrt(np.pi * D * t))
+
+
+def r_walk():
+    
+    
+    n_steps = 20
+    n = 3
+    walks = [[0] for _ in range(n)]
+
+    for i in range(n):
+        for _ in range(n_steps):
+            walks[i].append(walks[i][-1] + np.random.randint(0,2)*2 - 1)
+            
+    plt.plot(np.linspace(0,n_steps,n_steps+1),walks[0],marker='s',markersize=3)
+    plt.plot(np.linspace(0,n_steps,n_steps+1),walks[1],marker='x',markersize=3)
+    plt.plot(np.linspace(0,n_steps,n_steps+1),walks[2],marker='^',markersize=4)
+
+    plt.ylim((-11,11))
+    plt.xlabel('Time / s')
+    plt.ylabel('Position / m')
+    plt.savefig('rw.png',dpi=300,bbox_inches='tight')
+
+
+def lots():
+    n_steps = 1000
+    n = 1000
+    walks = [[0] for _ in range(n)]
+
+    fig, axs = plt.subplots(2,figsize=(8,16))
+
+    for i in range(n):
+        for _ in range(n_steps):
+            walks[i].append(walks[i][-1] + np.random.choice([1, -1], p=[0.7, 0.3]))
+        if i%100==0: axs[0].plot(np.linspace(0,n_steps,n_steps+1),walks[i])
+    
+    axs[0].set_xlabel('Time / s')
+    axs[0].set_ylabel('Position / m')
+    axs[0].set_ylim(-15,450)
+    axs[0].text(-20,420,'(A)')
+    
+    positions = [[walks[m][333] for m in range(n)],[walks[m][666] for m in range(n)],[walks[m][-1] for m in range(n)]]
+
+    distributions = [[],[],[]]
+    
+    labels = ['$t=333$s','$t=666$s','$t=1000$s']
+    for j in range(3):
+
+        for i in range(min(positions[j])-10,max(positions[j])+10,2):
+            distributions[j].append(positions[j].count(i))
+            
+        x_d = np.linspace(min(positions[j])-10,max(positions[j])+10,len(distributions[j]))
+
+        axs[1].plot(x_d,distributions[j],label=labels[j])
+        
+        popt, pcov = c(gaussian, np.linspace(min(positions[j])-10,max(positions[j])+10,len(distributions[j])),distributions[j], p0=[max(distributions[j]), positions[j][np.argmax(distributions[j])], 10])
+    
+        axs[1].plot(x_d,gaussian(x_d, *popt), color='red')
+    
+    axs[1].set_xlabel('Position / m')
+    axs[1].set_ylabel('Count')
+    axs[1].text(70,max(distributions[0])-1,'(B)')
+    axs[1].legend(loc='upper right', shadow=False)
+    plt.savefig('rw_more.png',dpi=300,bbox_inches='tight')
+    
+
+def timed():
+    
+    targets = [50,150,250]
+    n = 10000
+    labels = ['$x=50$m','$x=150$m','$x=250$m']
+
+    for j in range(len(targets)):
+        times = []
+        distribution = []
+        for _ in range(n):
+            time = 0
+            position = 0
+            while position <= targets[j]:
+                position += np.random.choice([1, -1], p=[0.7, 0.3])
+                time += 1
+            times.append(time)
+        
+        
+        for i in range(min(times),max(times),2):
+            distribution.append(times.count(i))
+        
+        x_data = np.linspace(min(times),max(times)+1,len(distribution))
+        y_data = distribution
+        
+        popt, pcov = c(lambda t, f0, v, D, tau: custom_function(t, targets[j], f0, v, D, tau), x_data, y_data, method='trf',p0=[1e-10,0.4,0.1,-8.5])
+        f0_opt, v_opt, D_opt, tau_opt = popt
+        y_fit = custom_function(x_data, targets[j], f0_opt, v_opt, D_opt, tau_opt)
+        
+        plt.plot(x_data,y_data,label=labels[j])
+        plt.plot(x_data,y_fit,'r-',linewidth=1.5)
+    
+    plt.xlabel('Time / $s$')
+    plt.ylabel('Count')
+    plt.legend(loc='upper right', fontsize=16, shadow=False)
+
+    plt.savefig('cvt.png',dpi=300,bbox_inches='tight')
+
+t1 = time.time()     
+lots()
+print(f"Time taken = {time.time()-t1}s")
+plt.show()
